@@ -38,13 +38,14 @@ void create_spectrum(int n, float o1, float d1, float* spectrum);
 int
 main(int argc, char **argv)
 {
-	int nw;			/* number of frequency samples per trace */
+	int nf;			/* number of frequency samples per trace */
   int nfft;   /* For computing the FFT */
 	int i;			/* time sample index */
   int logar;   /* Check if the trace has had a log applied (for mie scattering) */
   int specsq; /* Check if the input is the spectrum or spectrum squared */
   const double eps = 1.e-32;
-  complex *fft     = NULL;
+  complex *ct      = NULL;
+  float   *rt      = NULL;
   kiss_fftr_cfg forw, invs;
 
 	/* hook up getpar */
@@ -52,41 +53,57 @@ main(int argc, char **argv)
 	requestdoc(1);
   //requestdoc(0); // For now (testing), stdin is not used
   
+  /* Read in the trace */
   if (!gettr(&tr)) err("can't get first trace");
-  nw = tr.ns;
-  nfft = 2*(nw-1);
+  nf = tr.ns;
+  //nfft = 2*(nf - 1); // I am not sure if this should be -2 or -1
+  nfft = npfar(nf);
 
   if (!getparint("log",&logar)) logar = 0;
   if (!getparint("specsq",&specsq)) specsq = 0;
 
   /* Allocating memory */
-  fft       = alloc1complex(nfft/2+1);
-  forw      = kiss_fftr_alloc(nfft,0,NULL,NULL);
-  invs      = kiss_fftr_alloc(nfft,1,NULL,NULL);
-  if(NULL == forw || NULL == invs)
-    err("KISS FFT allocation error");
+  ct       = alloc1complex(nf);
+  rt       = ealloc1float(nfft);
+  
+  for(i = 0; i < nf; i++) {
+    fprintf(stderr, "i=%d input=%f\n",i,tr.data[i]);
+  }
+
+  fprintf(stderr, "\n");
 
   /* Squaring the spectrum */
   if(!specsq) {
-    for(i = 0; i < nw; i++) {
+    for(i = 0; i < nf; i++) {
       tr.data[i] *= tr.data[i];
     }
   }
 
   /* Take the log and create a complex type */
+  // Note that I am no longer dividing by nfft. Therefore, the outputs will be different
   if(!logar) {
-    for(i = 0; i < nw; i++) {
-      fft[i] = cmplx(log(tr.data[i]+eps)/nfft,0.);  
+    for(i = 0; i < nf; i++) { //This needs to be the length of the data
+      ct[i].r = log(tr.data[i]+eps)/nfft; // Therefore, the nfft needs to be twice that length
+      ct[i].i = 0.f;
+      fprintf(stderr, "i=%d fftr=%f ffti=%f\n", i, ct[i].r, ct[i].i);
     }
   }
   else {
-    for(i = 0; i < nw; i++) {
-      fft[i] = cmplx(tr.data[i]/nfft,0.); 
+    for(i = 0; i < nf; i++) {
+      ct[i].r = tr.data[i];
+      ct[i].i = 0.f;
     }
   }
 
+  fprintf(stderr, "\n");
+  fprintf(stderr, "The ifft: nfft=%d \n", nfft);
   /* Find the inverse FFT */
-  kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data); //change to pfarc
+  //kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data); //change to pfarc
+  pfacr(-1, nfft, ct, tr.data);
+  for(i = 0; i < nfft; i++) {
+    fprintf(stderr, "i=%d rt=%f\n", i, tr.data[i]);
+  }
+  fprintf(stderr, "\n");
 
   tr.data[0]      *= 0.5;
   tr.data[nfft/2] *= 0.5;
@@ -94,18 +111,29 @@ main(int argc, char **argv)
     tr.data[i] = 0.;
   }
 
-  kiss_fftr(forw, tr.data, (kiss_fft_cpx *) fft);
+  fprintf(stderr, "The ffft: nfft=%d \n", nfft);
+  //kiss_fftr(forw, tr.data, (kiss_fft_cpx *) fft);
+  pfarc(1,nfft,tr.data,ct);
+  for(i = 0; i < nf; i++) { //This needs to be the length of the data
+    fprintf(stderr, "i=%d fftr=%f ffti=%f\n", i, ct[i].r, ct[i].i);
+  }
+  fprintf(stderr, "\n");
 
-  for(int i=0; i < nw; i++) {
-    fft[i] = crmul(cwp_cexp(fft[i]),1./nfft);
+  for(int i=0; i < nf; i++) {
+    ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
   }
 
   // Put in cosine taper window
 
-  kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
-
+  //kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
+  pfacr(-1,nfft,ct,tr.data);
+  //for(i = 0; i < nfft; i++) {
+  //  fprintf(stderr, "i=%d rt=%f\n", i, tr.data[i]);
+  //}
+ 
   tr.ns = nfft;
   tr.f1 = 0.f;
+
 
   puttr(&tr);
 	return(CWP_Exit());

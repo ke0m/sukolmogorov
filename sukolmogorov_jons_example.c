@@ -81,19 +81,27 @@ main(int argc, char **argv)
   j = n/2;
   for(int i = 0; i < nw; i++, j++) {
     rspectrum[i] = spectrum[j]*spectrum[j];
-    //tr.data[i] = rspectrum[i];
+    tr.data[i] = rspectrum[i];
   }
 
+ 
+  fprintf(stderr, "Created input: \n"); 
   for(int i = 0; i < nw; i++) {
-    fprintf(stderr, "input=%f\n", rspectrum[i]);
+    fprintf(stderr, "i=%d input=%f\n",i,rspectrum[i]);
   }
+  fprintf(stderr, "\n");
 
-  /* Take the log and create a complex type */
+  // Take the log and create a complex type
+  fprintf(stderr, "Log of spectrum: \n"); 
   for(int i = 0; i < nw; i++) {
     fft[i] = cmplx(log(rspectrum[i]+eps)/nfft,0.);
   }
+  for(int i = 0; i < nw; i++) {
+    fprintf(stderr, "i=%d real=%f imag=%f\n",i,fft[i].r,fft[i].i);
+  }
+  fprintf(stderr, "\n");
 
-  /* Find the inverse FFT */
+  // Find the inverse FFT
   kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
 
   tr.data[0]      *= 0.5;
@@ -109,6 +117,10 @@ main(int argc, char **argv)
   }
 
   kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
+
+  for(int i = 0; i < nfft; i++) {
+    fprintf(stderr, "i=%d output=%f\n", i, tr.data[i]);
+  }
 
   puttr(&tr);
 	return(CWP_Exit());

@@ -1,12 +1,10 @@
 /* Copyright (c) Colorado School of Mines, 2011.*/
 /* All rights reserved.                       */
 
-/* SUKOLMOGOROV: $Revision: 0.1 $ ; $Date: 2016/07/12 19:45:15 $		*/
+/* SUKOLMOGOROV: $Revision: 1.0 $ ; $Date: 2015/07/17 19:45:15 $		*/
  
 #include "su.h"
 #include "segy.h"
-#include "kiss_fft.h"
-#include "kiss_fftr.h"
 
 /*********************** self documentation ******************************/
 char *sdoc[] = {
@@ -16,8 +14,8 @@ char *sdoc[] = {
 "  sukolmogorov <stdin >stdout [optional parameters]				     ",
 "									     ",
 " Optional Parameters:							     ",
-" log=0           =1 to take in account that input is already log of spectrum  ",
-" specsq=0           =1 to take in account that input is already log of spectrum  ",
+" log=0              =1 to take in account that input is already the log of spectrum  ",
+" specsq=0           =1 to take in account that input is already the spectrum sqaured ",
 " Notes: Forthcoming...								     ",
 "									     ",
 NULL};
@@ -32,8 +30,10 @@ NULL};
  */
 /**************** end self doc *******************************************/
 
+#define LOOKFAC 2 /* Look ahead factor for npfaro   */
+#define PFA_MAX 720720  /* Largest allowed nfft           */
+
 segy tr;
-void create_spectrum(int n, float o1, float d1, float* spectrum);
 
 int
 main(int argc, char **argv)
@@ -46,30 +46,26 @@ main(int argc, char **argv)
   const double eps = 1.e-32;
   complex *ct      = NULL;
   float   *rt      = NULL;
-  kiss_fftr_cfg forw, invs;
 
 	/* hook up getpar */
 	initargs(argc, argv);
 	requestdoc(1);
-  //requestdoc(0); // For now (testing), stdin is not used
   
   /* Read in the trace */
   if (!gettr(&tr)) err("can't get first trace");
-  nf = tr.ns;
-  //nfft = 2*(nf - 1); // I am not sure if this should be -2 or -1
-  nfft = npfar(nf);
+  nf = 2*tr.ns;
+  nfft = npfaro(nf,LOOKFAC*nf);
 
   if (!getparint("log",&logar)) logar = 0;
   if (!getparint("specsq",&specsq)) specsq = 0;
 
   /* Allocating memory */
-  ct       = alloc1complex(nf);
-  rt       = ealloc1float(nfft);
-  
+  ct = alloc1complex(nf);
+
+  fprintf(stderr, "input spec: \n");
   for(i = 0; i < nf; i++) {
     fprintf(stderr, "i=%d input=%f\n",i,tr.data[i]);
   }
-
   fprintf(stderr, "\n");
 
   /* Squaring the spectrum */
@@ -80,12 +76,10 @@ main(int argc, char **argv)
   }
 
   /* Take the log and create a complex type */
-  // Note that I am no longer dividing by nfft. Therefore, the outputs will be different
   if(!logar) {
     for(i = 0; i < nf; i++) { //This needs to be the length of the data
       ct[i].r = log(tr.data[i]+eps)/nfft; // Therefore, the nfft needs to be twice that length
       ct[i].i = 0.f;
-      fprintf(stderr, "i=%d fftr=%f ffti=%f\n", i, ct[i].r, ct[i].i);
     }
   }
   else {
@@ -95,13 +89,17 @@ main(int argc, char **argv)
     }
   }
 
+  fprintf(stderr, "log of spec(nfft=%d): \n",nfft);
+  for(i = 0; i < nf; i++) {
+    fprintf(stderr, "i=%d real=%f imag=%f\n",i,ct[i].r,ct[i].i);
+  }
   fprintf(stderr, "\n");
-  fprintf(stderr, "The ifft: nfft=%d \n", nfft);
+
   /* Find the inverse FFT */
-  //kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data); //change to pfarc
+  fprintf(stderr, "the ifft: \n");
   pfacr(-1, nfft, ct, tr.data);
   for(i = 0; i < nfft; i++) {
-    fprintf(stderr, "i=%d rt=%f\n", i, tr.data[i]);
+    fprintf(stderr, "i=%d ifft=%f\n",i,tr.data[i]);
   }
   fprintf(stderr, "\n");
 
@@ -111,13 +109,7 @@ main(int argc, char **argv)
     tr.data[i] = 0.;
   }
 
-  fprintf(stderr, "The ffft: nfft=%d \n", nfft);
-  //kiss_fftr(forw, tr.data, (kiss_fft_cpx *) fft);
   pfarc(1,nfft,tr.data,ct);
-  for(i = 0; i < nf; i++) { //This needs to be the length of the data
-    fprintf(stderr, "i=%d fftr=%f ffti=%f\n", i, ct[i].r, ct[i].i);
-  }
-  fprintf(stderr, "\n");
 
   for(int i=0; i < nf; i++) {
     ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
@@ -125,27 +117,16 @@ main(int argc, char **argv)
 
   // Put in cosine taper window
 
-  //kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
+  fprintf(stderr, "output: \n");
   pfacr(-1,nfft,ct,tr.data);
-  //for(i = 0; i < nfft; i++) {
-  //  fprintf(stderr, "i=%d rt=%f\n", i, tr.data[i]);
-  //}
+  for(i = 0; i < nfft; i++) {
+    fprintf(stderr, "i=%d output=%f\n",i,tr.data[i]);
+  }
  
   tr.ns = nfft;
   tr.f1 = 0.f;
-
 
   puttr(&tr);
 	return(CWP_Exit());
 }
 
-/* Functions from Jons GEE example */
-void create_spectrum(int n, float o1, float d1, float* spectrum) {
-
-  float x = 0.f;
-  for(int i = 0; i < n+1; i++) {
-    x = o1 + d1*i;
-    spectrum[i] = exp(-fabs(6*(x)));
-    //fprintf(stderr, "i=%d spectrum=%f\n", i,spectrum[i]);
-  }
-}

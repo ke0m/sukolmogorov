@@ -27,7 +27,7 @@ char *sdoc[] = {
  *	TCCS: 
  * Technical Reference:
  *
- * Trace header fields accessed: ns, dt
+ * Trace header fields accessed: ns,
  */
 
 /*
@@ -51,7 +51,6 @@ main(int argc, char **argv)
 {
   int nt;           /* number of time samples */
   size_t ntsize;    /* Size of nf in bytes */
-  int dt;           /* Time sampling interval */
   int nf;			      /* number of frequency samples. Right now is 2*nt*/
   int nfft;         /* For computing the FFT */
   size_t nzeros;    /* Size of nf in bytes */
@@ -59,6 +58,9 @@ main(int argc, char **argv)
   int logar;        /* Check if the trace has had a log applied (for mie scattering) */
   int specsq;       /* Check if the input is the spectrum or spectrum squared */
   int verbose;      /* flag to get advisory messages */
+  int lag;          /* lag for asymmetric part */
+  float asym;       /*(?) For applying the cosine window to the trace */
+  float newd1;      /* New sampling interval for amplitude spectra input */
   cwp_Bool seismic; /* Check if the input is seismic data */
 
   const double eps = 1.e-32; /* Small value for log in case of log(0) */
@@ -70,6 +72,7 @@ main(int argc, char **argv)
   requestdoc(1);
 
   /* Getting and setting parameters */
+  if (!getparint("lag"    ,  &lag    ))    lag     = 0;
   if (!getparint("log"    ,  &logar  ))    logar   = 0;
   if (!getparint("specsq" ,  &specsq ))    specsq  = 0;
   if (!getparint("verbose",  &verbose))    verbose = 0;
@@ -77,27 +80,9 @@ main(int argc, char **argv)
   /* Read in the trace */
   if (!gettr(&tr)) err("can't get first trace");
   seismic = ISSEISMIC(tr.trid);
+
   if (seismic) {
     if (verbose)  warn("input is seismic data, trid=%d",tr.trid);
-    dt = ((double) tr.dt)/1000000.0;
-  }
-  else {
-    if (verbose)  warn("input is not seismic data, trid=%d",tr.trid);
-    dt = tr.d1;
-  }
-  if(!dt) warn("you did not provide a d1 or dt.");
-  //nf = 2*nt;
-  //ntsize = nt*FSIZE;
-  //nfft = npfaro(nf,LOOKFAC*nf);
-  //if (nfft >= SU_NFLTS || nfft >= PFA_MAX) 
-  //  err("Padded nt=%d -- too big", nfft);
-  //nzeros = (nfft-nt)*FSIZE;
-
-  /* Allocating memory */
-  //ct = alloc1complex(nf);
-
-  if(seismic) {
-    fprintf(stderr, "seismic\n");
     nt   = tr.ns;
     nfft = 2*npfaro((nt+1)/2,LOOKFAC*nt);
     if (nfft >= SU_NFLTS || nfft >= PFA_MAX) 
@@ -116,20 +101,35 @@ main(int argc, char **argv)
     /* Forward FFT */
     pfarc(1, nfft, rt, ct);
 
-    /* Computing square of Amplitude spectrum */
+    /* Computing square of amplitude spectrum */
     for(i = 0; i < nf; i++) {
       rt[i] = (ct[i].r * ct[i].r) + (ct[i].i * ct[i].i);
     }
+    fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
   }
   else if(tr.trid == AMP_SPEC) {
-    fprintf(stderr, "spec\n");
+    //TODO: How do I know what is the correct nfft?
+    // Attempt to mimic what suifft does.
+    if (verbose)  warn("input is amplitude spectrum data, trid=%d",tr.trid);
     nt   = tr.ns;
-    nf = 2*nt;
+    nf = 2*nt; //Should I scale by 2?
     ntsize = nt*FSIZE;
     nfft = npfaro(nf,LOOKFAC*nf);
     if (nfft >= SU_NFLTS || nfft >= PFA_MAX) 
       err("Padded nt=%d -- too big", nfft);
     nzeros = (nfft-nt)*FSIZE;
+
+    /* Computing sampling interval */
+    if(tr.d1) {
+      newd1 = 1/(nfft*tr.d1);
+    }
+    else {
+      if(tr.dt) newd1 = (float) (((double) tr.dt)/1000000.0);
+      else {
+        warn("You did not specify a d1 or dt. Setting to 1...");
+        newd1 = 1.f;
+      }
+    }
 
     /* Allocating memory */
     rt = ealloc1float(nfft);
@@ -143,10 +143,11 @@ main(int argc, char **argv)
         rt[i] *= rt[i];
       }
     }
+    fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
   }
   else {
     err("I do not know how to work with the data you provided. \
-         I can only work on time series or amplitude spectra");
+        I can only work on time series or amplitude spectra");
   }
 
   fprintf(stderr, "input spec: \n");
@@ -169,12 +170,11 @@ main(int argc, char **argv)
     }
   }
 
-  fprintf(stderr, "log of spec(nfft=%d): \n",nfft);
-  for(i = 0; i < nf; i++) {
-    fprintf(stderr, "i=%d real=%f imag=%f\n",i,ct[i].r,ct[i].i);
-  }
-  fprintf(stderr, "\n");
-
+  //fprintf(stderr, "log of spec(nfft=%d): \n",nfft);
+  //for(i = 0; i < nf; i++) {
+  //  fprintf(stderr, "i=%d real=%f imag=%f\n",i,ct[i].r,ct[i].i);
+  //}
+  //fprintf(stderr, "\n");
 
   /* Find the inverse FFT */
   //fprintf(stderr, "the ifft: \n");
@@ -192,32 +192,56 @@ main(int argc, char **argv)
     rt[i] = 0.;
   }
 
+  // Put in cosine taper window
+  for (i=1; i < lag; i++) {
+    asym = cosf(0.5*PI*i/(lag-1.0));  /* tapering weight */
+    asym *= 0.5*rt[i]*asym; 
+    rt[i]      -= asym;
+    rt[nfft-i] += asym;
+  }
+
   pfarc(1,nfft,rt,ct);
 
   for(int i=0; i < nf; i++) {
     ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
   }
 
-  // Put in cosine taper window
-
-  //fprintf(stderr, "output: \n");
+  fprintf(stderr, "output: \n");
   pfacr(-1,nfft,ct,rt);
-  /*
-     for(i = 0; i < nfft; i++) {
-     fprintf(stderr, "i=%d output=%f\n",i,tr.data[i]);
-     }
-     */
+
+  float o1 = -M_PI/2;
+  float dt = 0.004;
+  //for(i = 0; i < nfft; i++) {
+  //  fprintf(stderr, "i=%d t=%f output=%f\n",i,o1+i*dt,rt[i]);
+  //}
 
   /* Copy data back to tr */
-  for(i = 0; i < nf; i++) {
-    tr.data[i] = rt[i];
+  if(seismic) {
+    for(i = 0; i < nt; i++) { // I am not sure but this might cause problems for the time domain case???
+      tr.data[i] = rt[i];
+    }
   }
-
-  tr.ns = nfft;
-  tr.f1 = 0.f;
-
-  puttr(&tr);
+  else {
+    //TODO: What other fields should I set here:
+    //      d1, dt, ns?
+    if(tr.trid == AMP_SPEC) {
+      tr.trid = TREAL;
+      tr.ns = nfft;
+      //tr.d1 = newd1;
+      tr.dt = 0.004; // for testing...
+      if(!tr.f1) {
+        tr.f1 = 0.f;
+      }
+      /* Copy back to tr */
+      for(i = 0; i < nfft; i++) {
+        tr.data[i] = rt[i];
+        fprintf(stderr, "i=%d t=%f output=%f\n",i,o1+i*dt,rt[i]);
+      }
+    }
+  }
   
+  puttr(&tr);
+
   /* Deallocate memory */
   free1float(rt);
   free1complex(ct);

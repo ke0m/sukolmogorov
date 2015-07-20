@@ -9,7 +9,7 @@
 /*********************** self documentation ******************************/
 char *sdoc[] = {
   "									     ",
-  " SUKOLMOGOROV - The kolmogorov method for finding the time domain minimum phase equivalent of a spectrum",
+  " SUKOLMOGOROV - The kolmogorov method for spectral factorization",
   "									     ",
   "  sukolmogorov <stdin >stdout [optional parameters]				     ",
   "									     ",

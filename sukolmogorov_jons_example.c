@@ -92,14 +92,14 @@ main(int argc, char **argv)
   fprintf(stderr, "\n");
 
   // Take the log and create a complex type
-  fprintf(stderr, "Log of spectrum: \n"); 
+  //fprintf(stderr, "Log of spectrum: \n"); 
   for(int i = 0; i < nw; i++) {
     fft[i] = cmplx(log(rspectrum[i]+eps)/nfft,0.);
   }
-  for(int i = 0; i < nw; i++) {
-    fprintf(stderr, "i=%d real=%f imag=%f\n",i,fft[i].r,fft[i].i);
-  }
-  fprintf(stderr, "\n");
+  //for(int i = 0; i < nw; i++) {
+  //  fprintf(stderr, "i=%d real=%f imag=%f\n",i,fft[i].r,fft[i].i);
+  //}
+  //fprintf(stderr, "\n");
 
   // Find the inverse FFT
   kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
@@ -118,8 +118,9 @@ main(int argc, char **argv)
 
   kiss_fftri(invs,(const kiss_fft_cpx *) fft, tr.data);
 
+  float dt = 0.004;
   for(int i = 0; i < nfft; i++) {
-    fprintf(stderr, "i=%d output=%f\n", i, tr.data[i]);
+    fprintf(stderr, "i=%d t=%f output=%f\n", i, o1+dt*i, tr.data[i]);
   }
 
   puttr(&tr);

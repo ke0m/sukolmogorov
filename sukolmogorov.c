@@ -105,14 +105,13 @@ main(int argc, char **argv)
     for(i = 0; i < nf; i++) {
       rt[i] = (ct[i].r * ct[i].r) + (ct[i].i * ct[i].i);
     }
-    fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
+    //fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
   }
   else if(tr.trid == AMP_SPEC) {
     //TODO: How do I know what is the correct nfft?
-    // Attempt to mimic what suifft does.
     if (verbose)  warn("input is amplitude spectrum data, trid=%d",tr.trid);
-    nt   = tr.ns;
-    nf = 2*nt; //Should I scale by 2?
+    nt = tr.ns;
+    nf = nt; //Should I scale by 2?
     ntsize = nt*FSIZE;
     nfft = npfaro(nf,LOOKFAC*nf);
     if (nfft >= SU_NFLTS || nfft >= PFA_MAX) 
@@ -143,18 +142,18 @@ main(int argc, char **argv)
         rt[i] *= rt[i];
       }
     }
-    fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
+    //fprintf(stderr, "nt=%d nfft=%d nf=%d \n", nt,nfft,nf);
   }
   else {
     err("I do not know how to work with the data you provided. \
         I can only work on time series or amplitude spectra");
   }
 
-  fprintf(stderr, "input spec: \n");
-  for(i = 0; i < nfft; i++) {
-    fprintf(stderr, "i=%d input=%f\n",i,rt[i]);
-  }
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "input spec: \n");
+  //for(i = 0; i < nfft; i++) {
+  //  fprintf(stderr, "i=%d input=%f\n",i,rt[i]);
+  //}
+  //fprintf(stderr, "\n");
 
   /* Take the log and create a complex type */
   if(!logar) {
@@ -206,14 +205,8 @@ main(int argc, char **argv)
     ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
   }
 
-  fprintf(stderr, "output: \n");
+  //fprintf(stderr, "output: \n");
   pfacr(-1,nfft,ct,rt);
-
-  float o1 = -M_PI/2;
-  float dt = 0.004;
-  //for(i = 0; i < nfft; i++) {
-  //  fprintf(stderr, "i=%d t=%f output=%f\n",i,o1+i*dt,rt[i]);
-  //}
 
   /* Copy data back to tr */
   if(seismic) {
@@ -227,16 +220,22 @@ main(int argc, char **argv)
     if(tr.trid == AMP_SPEC) {
       tr.trid = TREAL;
       tr.ns = nfft;
-      //tr.d1 = newd1;
-      tr.dt = 0.004; // for testing...
+      tr.d1 = newd1;
+      //tr.dt = 0.004; // for testing...
       if(!tr.f1) {
         tr.f1 = 0.f;
       }
+      float dt = 0.004;
+      float o1 = -M_PI/2;
       /* Copy back to tr */
       for(i = 0; i < nfft; i++) {
         tr.data[i] = rt[i];
-        fprintf(stderr, "i=%d t=%f output=%f\n",i,o1+i*dt,rt[i]);
+        //fprintf(stderr, "i=%d t=%f output=%f\n",i,o1+i*dt,rt[i]);
       }
+    }
+    else {
+      err("I do not know how to work with the data you provided. \
+        I can only work on time series or amplitude spectra");
     }
   }
   

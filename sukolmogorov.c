@@ -179,7 +179,6 @@ main(int argc, char **argv)
 
   pfarc(1,nfft,rt,ct);
 
-  //TODO: Perhaps change this to real and imaginary parts
   for(int i=0; i < nf; i++) {
     ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
   }

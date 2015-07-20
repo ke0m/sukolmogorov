@@ -34,7 +34,6 @@ char *sdoc[] = {
 /*
  * TODO:
  * 3. Test code on 1,-0.9 and -0.9,1 wavelets
- * 4. Try to implement an optional shift in this code
  */
 
 /**************** end self doc *******************************************/
@@ -185,13 +184,6 @@ main(int argc, char **argv)
   for(int i=0; i < nf; i++) {
     ct[i] = crmul(cwp_cexp(ct[i]),1./nfft);
   }
-
-  if (0 != shift) {
-    for (i=0; i < nf; i++) {
-      ct[i] = cmul(ct[i],cwp_cexp(cmplx(0.0,2*M_PI*i*shift/nfft)));
-    }
-  }   
-  
 
   pfacr(-1,nfft,ct,rt);
 

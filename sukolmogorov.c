@@ -17,7 +17,7 @@ char *sdoc[] = {
   " log=0              =1 to take in account that input is already the log of spectrum  ",
   " specsq=0           =1 to take in account that input is already the spectrum sqaured ",
   " verbose=0          =1 for advisory messages",
-  " lag=                  lag for cosine window applied to the trace",
+  " lag=0                 lag for cosine window applied to the trace",
   " Notes: Forthcoming...								     ",
   "									     ",
   NULL};
@@ -34,7 +34,10 @@ char *sdoc[] = {
 
 /*
  * TODO:
- * 3. Test code on 1,-0.9 and -0.9,1 wavelets
+ * 1. Apply a shift to line up the traces
+ *  Look for the first non-zero sample
+ *  This sample will be the tmin for sushift
+ *  Then shift the trace to this point.
  */
 
 /**************** end self doc *******************************************/

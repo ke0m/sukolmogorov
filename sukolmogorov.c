@@ -17,6 +17,7 @@ char *sdoc[] = {
   " log=0              =1 to take in account that input is already the log of spectrum  ",
   " specsq=0           =1 to take in account that input is already the spectrum sqaured ",
   " verbose=0          =1 for advisory messages",
+  " lag=                  lag for cosine window applied to the trace",
   " Notes: Forthcoming...								     ",
   "									     ",
   NULL};
@@ -57,7 +58,6 @@ main(int argc, char **argv)
   int specsq;       /* Check if the input is the spectrum or spectrum squared */
   int verbose;      /* flag to get advisory messages */
   int lag;          /* lag for asymmetric part */
-  int shift;
   float asym;       /*(?) For applying the cosine window to the trace */
   float newd1;      /* New sampling interval for amplitude spectra input */
   cwp_Bool seismic; /* Check if the input is seismic data */
@@ -72,7 +72,6 @@ main(int argc, char **argv)
 
   /* Getting and setting parameters */
   if (!getparint("lag"    ,  &lag    ))    lag     = 0;
-  if (!getparint("shift"  ,  &shift  ))    shift   = 0;
   if (!getparint("log"    ,  &logar  ))    logar   = 0;
   if (!getparint("specsq" ,  &specsq ))    specsq  = 0;
   if (!getparint("verbose",  &verbose))    verbose = 0;
@@ -201,8 +200,6 @@ main(int argc, char **argv)
       if(!tr.f1) {
         tr.f1 = 0.f;
       }
-      float dt = 0.004;
-      float o1 = -M_PI/2;
       /* Copy back to tr */
       for(i = 0; i < nfft; i++) {
         tr.data[i] = rt[i];

@@ -14,7 +14,7 @@ char *sdoc[] = {
   "  sukolmogoroff <stdin >stdout [optional parameters]				     ",
   "									     ",
   " Optional Parameters:							     ",
-  " log=0              =1 to take in account that input is already the log of spectrum  ",
+  " db=0               =1 to take in account that input is in db  ",
   " specsq=0           =1 to take in account that input is already the spectrum sqaured ",
   " verbose=0          =1 for advisory messages",
   " lag=0                 lag for cosine window applied to the trace",
@@ -121,7 +121,7 @@ main(int argc, char **argv)
 
     /* Computing sampling interval */
     if(tr.d1) {
-      newd1 = 1/(nfft*tr.d1); //TODO:I am not sure if this is correct...
+      newd1 = tr.d1;
     }
     else {
       if(tr.dt) newd1 = (float) (((double) tr.dt)/1000000.0);
@@ -136,6 +136,13 @@ main(int argc, char **argv)
     ct = alloc1complex(nf);
     memcpy( (void *) rt, (const void *) tr.data, ntsize);
     memset((void *) (rt + nt), 0, nzeros);
+  
+    /* Squaring the spectrum */
+    if(!specsq && !db) {
+      for(i = 0; i < nf; i++) {
+        rt[i] *= rt[i];
+      }
+    }
 
   }
   else {
@@ -143,13 +150,6 @@ main(int argc, char **argv)
         I can only work on time series or amplitude spectra");
   }
   
-  /* Squaring the spectrum */
-  if(!specsq) {
-    for(i = 0; i < nf; i++) {
-      rt[i] *= rt[i];
-    }
-  }
-
   /* Take the log and create a complex type */
   if(!db) {
     for(i = 0; i < nf; i++) {
@@ -161,7 +161,7 @@ main(int argc, char **argv)
     for(i = 0; i < nf; i++) {
       // Undoing the dB
       rt[i] /= 20.f;
-      rt[i] = pow(rt[i],10.f);
+      rt[i] = pow(10.f,rt[i]);
       // Squaring the spectrum
       rt[i] *= rt[i];
       // Finding the log of the spectrum
@@ -205,7 +205,7 @@ main(int argc, char **argv)
     if(tr.trid == AMP_SPEC) {
       tr.trid = TREAL;
       tr.ns = nfft;
-      tr.d1 = newd1;
+      tr.dt = 1000000*newd1;
       if(!tr.f1) {
         tr.f1 = 0.f;
       }

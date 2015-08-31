@@ -9,9 +9,9 @@
 /*********************** self documentation ******************************/
 char *sdoc[] = {
   "									     ",
-  " SUKOLMOGOROV - The kolmogorov method for spectral factorization",
+  " SUKOLMOGOROFF - The kolmogorff method for spectral factorization",
   "									     ",
-  "  sukolmogorov <stdin >stdout [optional parameters]				     ",
+  "  sukolmogoroff <stdin >stdout [optional parameters]				     ",
   "									     ",
   " Optional Parameters:							     ",
   " log=0              =1 to take in account that input is already the log of spectrum  ",
@@ -57,7 +57,7 @@ main(int argc, char **argv)
   int nfft;         /* For computing the FFT */
   size_t nzeros;    /* Size of nf in bytes */
   int i;			      /* time sample index */
-  int logar;        /* Check if the trace has had a log applied (for mie scattering) */
+  int db;           /* Check if the trace is in dB (for mie scattering) */
   int specsq;       /* Check if the input is the spectrum or spectrum squared */
   int verbose;      /* flag to get advisory messages */
   int lag;          /* lag for asymmetric part */
@@ -75,7 +75,7 @@ main(int argc, char **argv)
 
   /* Getting and setting parameters */
   if (!getparint("lag"    ,  &lag    ))    lag     = 0;
-  if (!getparint("log"    ,  &logar  ))    logar   = 0;
+  if (!getparint("db"     ,  &db     ))    db      = 0;
   if (!getparint("specsq" ,  &specsq ))    specsq  = 0;
   if (!getparint("verbose",  &verbose))    verbose = 0;
 
@@ -137,20 +137,21 @@ main(int argc, char **argv)
     memcpy( (void *) rt, (const void *) tr.data, ntsize);
     memset((void *) (rt + nt), 0, nzeros);
 
-    /* Squaring the spectrum */
-    if(!specsq) {
-      for(i = 0; i < nf; i++) {
-        rt[i] *= rt[i];
-      }
-    }
   }
   else {
     err("I do not know how to work with the data you provided. \
         I can only work on time series or amplitude spectra");
   }
+  
+  /* Squaring the spectrum */
+  if(!specsq) {
+    for(i = 0; i < nf; i++) {
+      rt[i] *= rt[i];
+    }
+  }
 
   /* Take the log and create a complex type */
-  if(!logar) {
+  if(!db) {
     for(i = 0; i < nf; i++) {
       ct[i].r = log(rt[i]+eps)/nfft;
       ct[i].i = 0.f;
@@ -158,7 +159,13 @@ main(int argc, char **argv)
   }
   else {
     for(i = 0; i < nf; i++) {
-      ct[i].r = rt[i];
+      // Undoing the dB
+      rt[i] /= 20.f;
+      rt[i] = pow(rt[i],10.f);
+      // Squaring the spectrum
+      rt[i] *= rt[i];
+      // Finding the log of the spectrum
+      ct[i].r = log(rt[i]+eps)/nfft;
       ct[i].i = 0.f;
     }
   }
